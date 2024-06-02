@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  NotAcceptableException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -133,7 +134,7 @@ export class UserService {
     return parse;
   }
 
-  public async acceptFollow(userEmail: string, username: string) {
+  public async acceptUser(userEmail: string, username: string) {
     const user = await this.prismaService.users.findUnique({
       where: {
         email: userEmail,
@@ -184,6 +185,56 @@ export class UserService {
     });
     return {
       message: 'Follow request accepted',
+    };
+  }
+
+  public async followUser(userEmail: string, username: string) {
+    const user = await this.prismaService.users.findUnique({
+      where: {
+        email: userEmail,
+      },
+    });
+    if (userEmail === user.email)
+      throw new UnprocessableEntityException({
+        message: 'You are not allowed to follow yourself',
+      });
+    const check = await this.prismaService.users.findUnique({
+      where: {
+        username,
+      },
+    });
+    if (!check) throw new NotFoundException();
+    const isFollowed = await this.prismaService.follow.findMany({
+      where: {
+        AND: [
+          {
+            follower_id: {
+              equals: user!.id,
+            },
+          },
+          {
+            following_id: {
+              equals: Number(check.id),
+            },
+          },
+        ],
+      },
+    });
+    if (isFollowed[0])
+      throw new UnprocessableEntityException({
+        message: 'You are already followed',
+        status: isFollowed[0].is_accepted ? 'following' : 'requested',
+      });
+    const result = await this.prismaService.follow.create({
+      data: {
+        follower_id: user!.id,
+        following_id: Number(check.id),
+        is_accepted: check.is_private ? 0 : 1,
+      },
+    });
+    return {
+      message: 'Follow success',
+      status: result.is_accepted ? 'following' : 'requested',
     };
   }
 }

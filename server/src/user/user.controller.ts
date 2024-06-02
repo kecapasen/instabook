@@ -1,4 +1,12 @@
-import { Controller, Get, Inject, Param, Put, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { SupabaseGuard } from 'src/auth/supabase/supabase.guard';
 import { User } from 'src/auth/user.decorator';
@@ -27,11 +35,21 @@ export class UserController {
 
   @Put(':username/accept')
   @UseGuards(SupabaseGuard)
-  public async acceptFollow(
+  public async acceptUser(
     @User('email') userEmail: string,
     @Param('username') username: string,
   ) {
-    const accept = await this.userService.acceptFollow(userEmail, username);
+    const accept = await this.userService.acceptUser(userEmail, username);
     return accept;
+  }
+
+  @Post(':username/follow')
+  @UseGuards(SupabaseGuard)
+  public async followUser(
+    @User('email') userEmail: string,
+    @Param('username') username: string,
+  ) {
+    const follow = await this.userService.followUser(userEmail, username);
+    return follow;
   }
 }

@@ -16,12 +16,12 @@ export class LoggerMiddleware implements NestMiddleware {
 
   async use(request: Request, response: Response, next: NextFunction) {
     const accessToken = request.headers.authorization?.split(' ')[1];
-
     if (!accessToken) throw new UnauthorizedException();
-    const { data } = await this.supabaseService
+
+    const { data, error } = await this.supabaseService
       .getClient()
       .auth.getUser(accessToken);
-    if (!data.user) throw new UnauthorizedException();
+    if (error) throw new UnauthorizedException();
 
     request.user = data.user;
 
