@@ -237,4 +237,55 @@ export class UserService {
       status: result.is_accepted ? 'following' : 'requested',
     };
   }
+
+  public async unfollowUser(userEmail: string, username: string) {
+    const user = await this.prismaService.users.findUnique({
+      where: {
+        email: userEmail,
+      },
+    });
+    const check = await this.prismaService.users.findUnique({
+      where: {
+        username,
+      },
+    });
+    if (!check) throw new NotFoundException('User not found');
+    const checkFollowed = await this.prismaService.follow.findMany({
+      where: {
+        AND: [
+          {
+            follower_id: {
+              equals: user!.id,
+            },
+          },
+          {
+            following_id: {
+              equals: Number(check.id),
+            },
+          },
+        ],
+      },
+    });
+    if (!checkFollowed[0])
+      throw new NotAcceptableException({
+        message: 'You are not following the user',
+      });
+    await this.prismaService.follow.deleteMany({
+      where: {
+        AND: [
+          {
+            follower_id: {
+              equals: user!.id,
+            },
+          },
+          {
+            following_id: {
+              equals: Number(check.id),
+            },
+          },
+        ],
+      },
+    });
+    return null;
+  }
 }

@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
@@ -33,6 +34,16 @@ export class UserController {
     return user;
   }
 
+  @Get(':username/followers')
+  @UseGuards(SupabaseGuard)
+  public async getUserFollowers(
+    @User('email') userEmail: string,
+    @Param('username') username: string,
+  ) {
+    const user = await this.userService.getUserByUsername(userEmail, username);
+    return user;
+  }
+
   @Put(':username/accept')
   @UseGuards(SupabaseGuard)
   public async acceptUser(
@@ -50,6 +61,16 @@ export class UserController {
     @Param('username') username: string,
   ) {
     const follow = await this.userService.followUser(userEmail, username);
+    return follow;
+  }
+
+  @Delete(':username/unfollow')
+  @UseGuards(SupabaseGuard)
+  public async unfollowUser(
+    @User('email') userEmail: string,
+    @Param('username') username: string,
+  ) {
+    const follow = await this.userService.unfollowUser(userEmail, username);
     return follow;
   }
 }
