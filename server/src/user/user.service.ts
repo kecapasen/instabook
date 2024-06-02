@@ -41,7 +41,10 @@ export class UserService {
         following: true,
       },
     });
-    if (!result[0]) throw new NotFoundException();
+    if (!result[0])
+      throw new NotFoundException({
+        message: 'User not found',
+      });
     const responseData = {
       users: result.map((data) => {
         return {
@@ -103,7 +106,10 @@ export class UserService {
         },
       },
     });
-    if (!result) throw new NotFoundException();
+    if (!result)
+      throw new NotFoundException({
+        message: 'User not found',
+      });
     const responseData = {
       id: result.id,
       fullname: result.fullname,
@@ -134,6 +140,52 @@ export class UserService {
     return parse;
   }
 
+  public async getUserFollowers(username: string) {
+    const check = await this.prismaService.users.findUnique({
+      where: {
+        username,
+      },
+    });
+    if (!check) throw new NotFoundException('User not found');
+    const result = await this.prismaService.users.findMany({
+      where: {
+        follower: {
+          some: {
+            following_id: {
+              equals: Number(check.id),
+            },
+          },
+        },
+      },
+      include: {
+        following: true,
+      },
+    });
+    if (!result[0])
+      throw new NotFoundException({
+        message: 'User not found',
+      });
+    const responseData = {
+      followers: result.map((data) => {
+        return {
+          id: data.id,
+          fullname: data.fullname,
+          username: data.username,
+          bio: data.bio,
+          is_private: data.is_private,
+          created_at: data.created_at,
+          is_requested: data.following[0].is_accepted ? 0 : 1,
+        };
+      }),
+    };
+    const parse = JSON.parse(
+      JSON.stringify(responseData, (_, value) => {
+        return typeof value === 'bigint' ? Number(value) : value;
+      }),
+    );
+    return parse;
+  }
+
   public async acceptUser(userEmail: string, username: string) {
     const user = await this.prismaService.users.findUnique({
       where: {
@@ -145,7 +197,10 @@ export class UserService {
         username: username,
       },
     });
-    if (!check) throw new NotFoundException();
+    if (!check)
+      throw new NotFoundException({
+        message: 'User not found',
+      });
     const isFollowed = await this.prismaService.follow.findMany({
       where: {
         AND: [
@@ -162,8 +217,14 @@ export class UserService {
         ],
       },
     });
-    if (!isFollowed[0]) throw new UnprocessableEntityException();
-    if (isFollowed[0].is_accepted) throw new UnprocessableEntityException();
+    if (!isFollowed[0])
+      throw new UnprocessableEntityException({
+        message: 'The user is not following you',
+      });
+    if (isFollowed[0].is_accepted)
+      throw new UnprocessableEntityException({
+        message: 'Follow request is already accepted',
+      });
     await this.prismaService.follow.updateMany({
       where: {
         AND: [
@@ -203,7 +264,10 @@ export class UserService {
         username,
       },
     });
-    if (!check) throw new NotFoundException();
+    if (!check)
+      throw new NotFoundException({
+        message: 'User not found',
+      });
     const isFollowed = await this.prismaService.follow.findMany({
       where: {
         AND: [
@@ -249,7 +313,7 @@ export class UserService {
         username,
       },
     });
-    if (!check) throw new NotFoundException('User not found');
+    if (!check) throw new NotFoundException({ message: 'User not found' });
     const checkFollowed = await this.prismaService.follow.findMany({
       where: {
         AND: [

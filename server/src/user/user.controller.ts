@@ -36,22 +36,9 @@ export class UserController {
 
   @Get(':username/followers')
   @UseGuards(SupabaseGuard)
-  public async getUserFollowers(
-    @User('email') userEmail: string,
-    @Param('username') username: string,
-  ) {
-    const user = await this.userService.getUserByUsername(userEmail, username);
-    return user;
-  }
-
-  @Put(':username/accept')
-  @UseGuards(SupabaseGuard)
-  public async acceptUser(
-    @User('email') userEmail: string,
-    @Param('username') username: string,
-  ) {
-    const accept = await this.userService.acceptUser(userEmail, username);
-    return accept;
+  public async getUserFollowers(@Param('username') username: string) {
+    const followers = await this.userService.getUserFollowers(username);
+    return followers;
   }
 
   @Post(':username/follow')
@@ -64,13 +51,23 @@ export class UserController {
     return follow;
   }
 
+  @Put(':username/accept')
+  @UseGuards(SupabaseGuard)
+  public async acceptUser(
+    @User('email') userEmail: string,
+    @Param('username') username: string,
+  ) {
+    const accept = await this.userService.acceptUser(userEmail, username);
+    return accept;
+  }
+
   @Delete(':username/unfollow')
   @UseGuards(SupabaseGuard)
   public async unfollowUser(
     @User('email') userEmail: string,
     @Param('username') username: string,
   ) {
-    const follow = await this.userService.unfollowUser(userEmail, username);
-    return follow;
+    const unfollow = await this.userService.unfollowUser(userEmail, username);
+    return unfollow;
   }
 }
