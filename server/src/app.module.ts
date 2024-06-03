@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { SupabaseModule } from './auth/supabase/supabase.module';
 import { LoggerMiddleware } from './logger.middleware';
+import { PostModule } from './post/post.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { LoggerMiddleware } from './logger.middleware';
     SupabaseModule,
     UserModule,
     ConfigModule.forRoot({ isGlobal: true }),
+    PostModule,
   ],
   controllers: [AppController],
   providers: [AppService],
