@@ -41,6 +41,13 @@ export class UserController {
     return followers;
   }
 
+  @Get(':username/following')
+  @UseGuards(SupabaseGuard)
+  public async getUserFollowing(@Param('username') username: string) {
+    const following = await this.userService;
+    return following;
+  }
+
   @Post(':username/follow')
   @UseGuards(SupabaseGuard)
   public async followUser(

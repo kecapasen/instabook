@@ -7,6 +7,9 @@ import { PassportModule } from '@nestjs/passport';
 import { SupabaseModule } from './auth/supabase/supabase.module';
 import { LoggerMiddleware } from './logger.middleware';
 import { PostModule } from './post/post.module';
+import { AuthModule } from './auth/auth.module';
+import { UserController } from './user/user.controller';
+import { PostController } from './post/post.controller';
 
 @Module({
   imports: [
@@ -15,12 +18,13 @@ import { PostModule } from './post/post.module';
     UserModule,
     ConfigModule.forRoot({ isGlobal: true }),
     PostModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LoggerMiddleware).forRoutes('*');
+    consumer.apply(LoggerMiddleware).forRoutes(UserController, PostController);
   }
 }

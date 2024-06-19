@@ -23,14 +23,14 @@ export class UserService {
         AND: [
           {
             id: {
-              not: user!.id,
+              not: user.id,
             },
           },
           {
             following: {
               none: {
                 follower_id: {
-                  equals: user!.id,
+                  equals: user.id,
                 },
               },
             },
@@ -53,6 +53,7 @@ export class UserService {
           username: data.username,
           bio: data.bio,
           is_private: data.is_private,
+          is_verified: data.is_verified,
           created_at: data.created_at,
         };
       }),
@@ -81,6 +82,7 @@ export class UserService {
         username: true,
         bio: true,
         is_private: true,
+        is_verified: true,
         created_at: true,
         posts: {
           include: {
@@ -90,7 +92,7 @@ export class UserService {
         following: {
           where: {
             follower_id: {
-              equals: user!.id,
+              equals: user.id,
             },
           },
           select: {
@@ -116,8 +118,9 @@ export class UserService {
       username: result.username,
       bio: result.bio,
       is_private: result.is_private,
+      is_verified: result.is_verified,
       created_at: result.created_at,
-      is_your_account: result.id === user!.id,
+      is_your_account: result.id === user.id,
       ...(result.id !== user.id && {
         following_status: result.following[0]
           ? result.following[0].is_accepted === 1
@@ -141,18 +144,18 @@ export class UserService {
   }
 
   public async getUserFollowers(username: string) {
-    const check = await this.prismaService.users.findUnique({
+    const user = await this.prismaService.users.findUnique({
       where: {
         username,
       },
     });
-    if (!check) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException('User not found');
     const result = await this.prismaService.users.findMany({
       where: {
         follower: {
           some: {
             following_id: {
-              equals: Number(check.id),
+              equals: Number(user.id),
             },
           },
         },
@@ -173,6 +176,7 @@ export class UserService {
           username: data.username,
           bio: data.bio,
           is_private: data.is_private,
+          is_verified: data.is_verified,
           created_at: data.created_at,
           is_requested: data.following[0].is_accepted ? 0 : 1,
         };
@@ -184,6 +188,106 @@ export class UserService {
       }),
     );
     return parse;
+  }
+
+  public async getUserFollowing(username: string) {
+    const user = await this.prismaService.users.findUnique({
+      where: {
+        username,
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    const result = await this.prismaService.users.findMany({
+      where: {
+        following: {
+          some: {
+            follower_id: {
+              equals: user.id,
+            },
+          },
+        },
+      },
+      include: {
+        following: true,
+      },
+    });
+    if (!result[0])
+      throw new NotFoundException({
+        message: 'User not found',
+      });
+    const responseData = {
+      following: result.map((data) => {
+        return {
+          id: data.id,
+          full_name: data.fullname,
+          username: data.username,
+          bio: data.bio,
+          is_private: data.is_private,
+          is_verified: data.is_verified,
+          created_at: data.created_at,
+          is_requested: data.following[0].is_accepted ? 0 : 1,
+        };
+      }),
+    };
+    const parse = JSON.parse(
+      JSON.stringify(responseData, (_, value) => {
+        return typeof value === 'bigint' ? Number(value) : value;
+      }),
+    );
+    return parse;
+  }
+
+  public async followUser(userEmail: string, username: string) {
+    const user = await this.prismaService.users.findUnique({
+      where: {
+        email: userEmail,
+      },
+    });
+    if (username === user.username)
+      throw new UnprocessableEntityException({
+        message: 'You are not allowed to follow yourself',
+      });
+    const check = await this.prismaService.users.findUnique({
+      where: {
+        username,
+      },
+    });
+    if (!check)
+      throw new NotFoundException({
+        message: 'User not found',
+      });
+    const isFollowed = await this.prismaService.follow.findMany({
+      where: {
+        AND: [
+          {
+            follower_id: {
+              equals: user.id,
+            },
+          },
+          {
+            following_id: {
+              equals: check.id,
+            },
+          },
+        ],
+      },
+    });
+    if (isFollowed[0])
+      throw new UnprocessableEntityException({
+        message: 'You are already followed',
+        status: isFollowed[0].is_accepted ? 'following' : 'requested',
+      });
+    const result = await this.prismaService.follow.create({
+      data: {
+        follower_id: user.id,
+        following_id: check.id,
+        is_accepted: check.is_private ? 0 : 1,
+      },
+    });
+    return {
+      message: 'Follow success',
+      status: result.is_accepted ? 'following' : 'requested',
+    };
   }
 
   public async acceptUser(userEmail: string, username: string) {
@@ -211,7 +315,7 @@ export class UserService {
           },
           {
             following_id: {
-              equals: user!.id,
+              equals: user.id,
             },
           },
         ],
@@ -235,7 +339,7 @@ export class UserService {
           },
           {
             following_id: {
-              equals: user!.id,
+              equals: user.id,
             },
           },
         ],
@@ -246,59 +350,6 @@ export class UserService {
     });
     return {
       message: 'Follow request accepted',
-    };
-  }
-
-  public async followUser(userEmail: string, username: string) {
-    const user = await this.prismaService.users.findUnique({
-      where: {
-        email: userEmail,
-      },
-    });
-    if (userEmail === user.email)
-      throw new UnprocessableEntityException({
-        message: 'You are not allowed to follow yourself',
-      });
-    const check = await this.prismaService.users.findUnique({
-      where: {
-        username,
-      },
-    });
-    if (!check)
-      throw new NotFoundException({
-        message: 'User not found',
-      });
-    const isFollowed = await this.prismaService.follow.findMany({
-      where: {
-        AND: [
-          {
-            follower_id: {
-              equals: user!.id,
-            },
-          },
-          {
-            following_id: {
-              equals: Number(check.id),
-            },
-          },
-        ],
-      },
-    });
-    if (isFollowed[0])
-      throw new UnprocessableEntityException({
-        message: 'You are already followed',
-        status: isFollowed[0].is_accepted ? 'following' : 'requested',
-      });
-    const result = await this.prismaService.follow.create({
-      data: {
-        follower_id: user!.id,
-        following_id: Number(check.id),
-        is_accepted: check.is_private ? 0 : 1,
-      },
-    });
-    return {
-      message: 'Follow success',
-      status: result.is_accepted ? 'following' : 'requested',
     };
   }
 
@@ -319,7 +370,7 @@ export class UserService {
         AND: [
           {
             follower_id: {
-              equals: user!.id,
+              equals: user.id,
             },
           },
           {
@@ -339,7 +390,7 @@ export class UserService {
         AND: [
           {
             follower_id: {
-              equals: user!.id,
+              equals: user.id,
             },
           },
           {

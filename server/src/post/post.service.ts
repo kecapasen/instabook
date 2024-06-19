@@ -1,10 +1,20 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { SupabaseService } from 'src/auth/supabase/supabase.service';
+import { CreatePostDTO } from 'src/dto/post/create-post.dto';
 import { PrismaService } from 'src/lib/prisma.service';
+import { bucketName } from 'src/types/bucket.enum';
 
 @Injectable()
 export class PostService {
   @Inject()
   private readonly prismaService: PrismaService;
+  @Inject()
+  private readonly supabaseService: SupabaseService;
 
   public async getPosts(userEmail: string, page: number, size: number) {
     const user = await this.prismaService.users.findUnique({
@@ -13,6 +23,7 @@ export class PostService {
       },
     });
     const skip = Number(size) * Number(page);
+    const totalRows = await this.prismaService.posts.count();
     const result = await this.prismaService.posts.findMany({
       take: size,
       skip,
@@ -25,14 +36,14 @@ export class PostService {
             user: {
               following: {
                 some: {
-                  follower_id: user!.id,
+                  follower_id: user.id,
                   is_accepted: 1,
                 },
               },
             },
           },
           {
-            user_id: user!.id,
+            user_id: user.id,
           },
         ],
       },
@@ -42,6 +53,7 @@ export class PostService {
       },
     });
     const responseData = {
+      maxPages: Math.ceil(totalRows / size),
       page,
       size,
       posts: result.map((post) => {
@@ -56,6 +68,7 @@ export class PostService {
             username: post.user.username,
             bio: post.user.bio,
             is_private: post.user.is_private,
+            is_verified: post.user.is_verified,
             created_at: post.user.created_at,
           },
           attachments: post.post_attachments.map((attachment) => {
@@ -73,5 +86,61 @@ export class PostService {
       }),
     );
     return parse;
+  }
+
+  public async createPost(
+    userEmail: string,
+    createPostDto: CreatePostDTO,
+    files: Express.Multer.File[],
+  ) {
+    const user = await this.prismaService.users.findUnique({
+      where: {
+        email: userEmail,
+      },
+    });
+    const url = await this.supabaseService.uploadPost(
+      bucketName.post,
+      files,
+      user.username,
+    );
+    await this.prismaService.posts.create({
+      data: {
+        user_id: user.id,
+        caption: createPostDto.caption,
+        post_attachments: {
+          createMany: {
+            data: url,
+          },
+        },
+      },
+    });
+    return {
+      message: 'Create post success',
+    };
+  }
+
+  public async deletePost(userEmail: string, postID: number) {
+    const user = await this.prismaService.users.findUnique({
+      where: {
+        email: userEmail,
+      },
+    });
+    const result = await this.prismaService.posts.findUnique({
+      where: {
+        id: postID,
+      },
+      include: {
+        user: true,
+      },
+    });
+    if (!result) throw new NotFoundException({ message: 'Post not found' });
+    const match = user.id === result.user.id;
+    if (!match) throw new ForbiddenException({ message: 'Forbidden access' });
+    await this.prismaService.posts.delete({
+      where: {
+        id: postID,
+      },
+    });
+    return null;
   }
 }
